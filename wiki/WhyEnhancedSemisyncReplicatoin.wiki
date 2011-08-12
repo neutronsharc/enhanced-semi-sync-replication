@@ -8,6 +8,8 @@ In our application architecture, if our “new thread” read “phantom data”
 
 So,we add a new variables for semi-sync "rpl_semi_sync_master_wait_before_commit".Once you set this variables ON, MySQL(InnoDB) will not commit the transaction until at least one slave get the binary log. By default, it is OFF and semi-sync act as the original way.
 
+= The different between the oring Semi-sync and Enhanced semi-sync Replication =
+
 
 = Details =
 
