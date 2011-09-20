@@ -1,1 +1,18 @@
 #How ESR affect the Response time
+
+{{{
+Rpl_semi_sync_master_clients	1
+Rpl_semi_sync_master_net_avg_wait_time	386
+Rpl_semi_sync_master_net_wait_time	1122982171
+Rpl_semi_sync_master_net_waits	2903977
+Rpl_semi_sync_master_no_times	2
+Rpl_semi_sync_master_no_tx	37008
+Rpl_semi_sync_master_status	ON
+Rpl_semi_sync_master_timefunc_failures	0
+Rpl_semi_sync_master_tx_avg_wait_time	447
+Rpl_semi_sync_master_tx_wait_time	1298157119
+Rpl_semi_sync_master_tx_waits	2903876
+Rpl_semi_sync_master_wait_pos_backtraverse	0
+Rpl_semi_sync_master_wait_sessions	1
+Rpl_semi_sync_master_yes_tx	2903903
+}}}
