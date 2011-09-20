@@ -46,5 +46,7 @@ So every transaction is about average 0.000447 second slower.
 |       4.000000 | 0.00%   |       1 |
 }}}
 RT >31ms 0.1%
+
 RT <15ms 99.8%
+
 RT <8ms 99.2%
