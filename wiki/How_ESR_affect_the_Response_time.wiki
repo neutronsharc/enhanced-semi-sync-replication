@@ -16,3 +16,5 @@ Rpl_semi_sync_master_wait_pos_backtraverse	0
 Rpl_semi_sync_master_wait_sessions	1
 Rpl_semi_sync_master_yes_tx	2903903
 }}}
+
+So every transaction is about average 0.000447 second slower.
