@@ -6,6 +6,11 @@ I publish this as a patch based on Percona-Server-5.5.15. I hope this can be mer
   * Download [http://www.percona.com/downloads/Percona-Server-5.5/Percona-Server-5.5.15-21.0/source/ Percona-Server-5.5.15-rel21.0.tar.gz]
   * Checkout the patch from google code: [http://code.google.com/p/enhanced-semi-sync-replication/source/checkout Google Code SVN].
   * tar zxf Percona-Server-5.5.15-rel21.0.tar.gz
+  * so:
+{{{
+$ls
+Percona-Server-5.5.15-rel21.0 ESR.percona.5.5.15.patch
+}}}
   * patch -p0 < ESR.percona.5.5.15.patch
   * Compile the Server: cmake . -DCMAKE_INSTALL_PREFIX=/opt/mysql  -DEXTRA_CHARSETS=all && make -j 8 && make install ...
   * configure the semi-sync with ***rpl_semi_sync_master_wait_before_commit=1*** in my.cnf ,so something like this:
