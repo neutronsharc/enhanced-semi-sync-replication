@@ -3,6 +3,7 @@
 =How to use the ESR=
 I publish this as a patch based on Percona-Server-5.5.15. I hope this can be merge into the main tree of Percona Server or MySQL Community Server ,so than i do not need maintain it at google code.
 
+== For Percona-Server-5.5.15 ==
   * Download [http://www.percona.com/downloads/Percona-Server-5.5/Percona-Server-5.5.15-21.0/source/ Percona-Server-5.5.15-rel21.0.tar.gz]
   * Checkout the patch from google code: [http://code.google.com/p/enhanced-semi-sync-replication/source/checkout Google Code SVN].
   * tar zxf Percona-Server-5.5.15-rel21.0.tar.gz
@@ -22,6 +23,8 @@ rpl_semi_sync_master_timeout=5000
 rpl_semi_sync_master_trace_level=32
 rpl_semi_sync_master_wait_before_commit=1
 }}}
+
+== For MySQL Community-Server-***5.5.16*** ==
 
 
 = Details =
