@@ -26,7 +26,7 @@ rpl_semi_sync_master_wait_before_commit=1
 
 === For MySQL Community-Server-***5.5.16*** ===
 
-it't the same as the Percona-Server. Of course, you should use [http://dev.mysql.com/downloads/mysql/ mysql-5.5.16.tar.gz]
+it't the same as the Percona-Server. Of course, you should use [http://dev.mysql.com/downloads/mysql/ mysql-5.5.16.tar.gz] and ESR.MySQL.5.5.16.patch
 
 
 = Details =
