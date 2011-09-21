@@ -1,0 +1,550 @@
+diff -Nur mysql-5.5.16/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result mysql-5.5.16.ESR/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result
+--- mysql-5.5.16/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result	1970-01-01 08:00:00.000000000 +0800
++++ mysql-5.5.16.ESR/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result	2011-09-21 20:35:41.000000000 +0800
+@@ -0,0 +1,139 @@
++include/master-slave.inc
++[connection master]
++#
++# Make Semi-sync MySQL works
++#
++#
++# INSTALL PLUGIN semi-sync on master
++#
++[ on master ]
++[ default state of semi-sync on master should be OFF ]
++show variables like 'rpl_semi_sync_master_enabled';
++Variable_name	Value
++rpl_semi_sync_master_enabled	OFF
++show variables like 'Rpl_semi_sync_master_wait_before_commit';
++Variable_name	Value
++rpl_semi_sync_master_wait_before_commit	ON
++[ enable semi-sync on master ]
++set global rpl_semi_sync_master_enabled = 1;
++show variables like 'rpl_semi_sync_master_enabled';
++Variable_name	Value
++rpl_semi_sync_master_enabled	ON
++[ status of semi-sync on master should be ON even without any semi-sync slaves ]
++show status like 'Rpl_semi_sync_master_clients';
++Variable_name	Value
++Rpl_semi_sync_master_clients	0
++show status like 'Rpl_semi_sync_master_status';
++Variable_name	Value
++Rpl_semi_sync_master_status	ON
++show status like 'Rpl_semi_sync_master_yes_tx';
++Variable_name	Value
++Rpl_semi_sync_master_yes_tx	0
++[ status of semi-sync on master should be OFF ]
++show status like 'Rpl_semi_sync_master_clients';
++Variable_name	Value
++Rpl_semi_sync_master_clients	0
++show status like 'Rpl_semi_sync_master_status';
++Variable_name	Value
++Rpl_semi_sync_master_status	ON
++show status like 'Rpl_semi_sync_master_yes_tx';
++Variable_name	Value
++Rpl_semi_sync_master_yes_tx	0
++#
++# INSTALL PLUGIN semi-sync on slave
++#
++[ on slave ]
++include/stop_slave.inc
++reset slave;
++[ default state of semi-sync on slave should be OFF ]
++show variables like 'rpl_semi_sync_slave_enabled';
++Variable_name	Value
++rpl_semi_sync_slave_enabled	OFF
++[ enable semi-sync on slave ]
++set global rpl_semi_sync_slave_enabled = 1;
++include/start_slave.inc
++show variables like 'rpl_semi_sync_slave_enabled';
++Variable_name	Value
++rpl_semi_sync_slave_enabled	ON
++show status like 'Rpl_semi_sync_slave_status';
++Variable_name	Value
++Rpl_semi_sync_slave_status	ON
++[ on master ]
++show status like "Rpl_semi_sync_master_clients";
++Variable_name	Value
++Rpl_semi_sync_master_clients	1
++[ initial master state after the semi-sync slave connected ]
++show status like 'Rpl_semi_sync_master_clients';
++Variable_name	Value
++Rpl_semi_sync_master_clients	1
++show status like 'Rpl_semi_sync_master_status';
++Variable_name	Value
++Rpl_semi_sync_master_status	ON
++show status like 'Rpl_semi_sync_master_no_tx';
++Variable_name	Value
++Rpl_semi_sync_master_no_tx	0
++show status like 'Rpl_semi_sync_master_yes_tx';
++Variable_name	Value
++Rpl_semi_sync_master_yes_tx	0
++create table t1(a int) engine = ENGINE_TYPE;
++[ master state after CREATE TABLE statement ]
++show status like 'Rpl_semi_sync_master_status';
++Variable_name	Value
++Rpl_semi_sync_master_status	ON
++show status like 'Rpl_semi_sync_master_no_tx';
++Variable_name	Value
++Rpl_semi_sync_master_no_tx	0
++show status like 'Rpl_semi_sync_master_yes_tx';
++Variable_name	Value
++Rpl_semi_sync_master_yes_tx	0
++insert into t1 values (1);
++[ master status after inserts ]
++show status like 'Rpl_semi_sync_master_status';
++Variable_name	Value
++Rpl_semi_sync_master_status	ON
++show status like 'Rpl_semi_sync_master_no_tx';
++Variable_name	Value
++Rpl_semi_sync_master_no_tx	0
++show status like 'Rpl_semi_sync_master_yes_tx';
++Variable_name	Value
++Rpl_semi_sync_master_yes_tx	1
++#
++# Bug#62174 rpl_semi_sync_master_wait_before_commit
++# Now we check if rpl_semi_sync_master_wait_before_commit is ON,
++# Semi-sync will act like what we expect.
++#
++[ on master_0 ]
++CREATE TABLE t2 (username varchar(100));
++SET DEBUG_SYNC= 'rpl_semi_sync_before_commit SIGNAL before_commit_start WAIT_FOR before_commit_done';
++INSERT INTO t2 VALUES ('[The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao');;
++
++[ on master_1 ];
++[ we can NOT read the data on master ]
++SET DEBUG_SYNC= "now WAIT_FOR before_commit_start";
++SELECT * FROM t2;
++username
++
++[ on slave ];
++[ but,we can read the data on slave ]
++SELECT * FROM t2;
++username
++[The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao
++SET DEBUG_SYNC= 'now SIGNAL before_commit_done';
++
++[ on master_1 ];
++[ at last, we can read the data on master ]
++SELECT * FROM t2;
++username
++[The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao
++#
++# Clean up
++#
++include/stop_slave.inc
++UNINSTALL PLUGIN rpl_semi_sync_slave;
++UNINSTALL PLUGIN rpl_semi_sync_master;
++change master to master_user='root',master_password='';
++include/start_slave.inc
++drop table t1;
++drop table t2;
++SET DEBUG_SYNC='RESET';
++include/rpl_end.inc
+diff -Nur mysql-5.5.16/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt mysql-5.5.16.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt
+--- mysql-5.5.16/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt	1970-01-01 08:00:00.000000000 +0800
++++ mysql-5.5.16.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt	2011-09-21 20:36:12.000000000 +0800
+@@ -0,0 +1,3 @@
++$SEMISYNC_PLUGIN_OPT
++--force-restart
++--loose-rpl_semi_sync_master_wait_before_commit=1
+diff -Nur mysql-5.5.16/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test mysql-5.5.16.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test
+--- mysql-5.5.16/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test	1970-01-01 08:00:00.000000000 +0800
++++ mysql-5.5.16.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test	2011-09-21 20:36:38.000000000 +0800
+@@ -0,0 +1,194 @@
++source include/have_semisync_plugin.inc;
++source include/not_embedded.inc;
++source include/have_innodb.inc;
++source include/master-slave.inc;
++source include/have_debug.inc;
++source include/have_debug_sync.inc;
++
++let $engine_type= InnoDB;
++#let $engine_type= MyISAM;
++
++# Suppress warnings that might be generated during the test
++disable_query_log;
++connection master;
++call mtr.add_suppression("Timeout waiting for reply of binlog");
++call mtr.add_suppression("Read semi-sync reply");
++call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
++connection slave;
++call mtr.add_suppression("Master server does not support semi-sync");
++call mtr.add_suppression("Semi-sync slave .* reply");
++call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
++enable_query_log;
++connection master;
++
++# After fix of BUG#45848, semi-sync slave should not create any extra
++# connections on master, save the count of connections before start
++# semi-sync slave for comparison below.
++let $_connections_normal_slave= query_get_value(SHOW STATUS LIKE 'Threads_connected', Value, 1);
++
++--echo #
++--echo # Make Semi-sync MySQL works
++--echo #
++
++--echo #
++--echo # INSTALL PLUGIN semi-sync on master
++--echo #
++connection master;
++echo [ on master ];
++
++disable_query_log;
++let $value = query_get_value(show variables like 'rpl_semi_sync_master_enabled', Value, 1);
++if ($value == No such row)
++{
++    set sql_log_bin=0;
++    eval INSTALL PLUGIN rpl_semi_sync_master SONAME '$SEMISYNC_MASTER_PLUGIN';
++    set global rpl_semi_sync_master_timeout= 5000; /* 5s */
++    set sql_log_bin=1;
++}
++enable_query_log;
++
++echo [ default state of semi-sync on master should be OFF ];
++show variables like 'rpl_semi_sync_master_enabled';
++show variables like 'Rpl_semi_sync_master_wait_before_commit';
++
++echo [ enable semi-sync on master ];
++set global rpl_semi_sync_master_enabled = 1;
++show variables like 'rpl_semi_sync_master_enabled';
++
++echo [ status of semi-sync on master should be ON even without any semi-sync slaves ];
++show status like 'Rpl_semi_sync_master_clients';
++show status like 'Rpl_semi_sync_master_status';
++show status like 'Rpl_semi_sync_master_yes_tx';
++
++echo [ status of semi-sync on master should be OFF ];
++show status like 'Rpl_semi_sync_master_clients';
++show status like 'Rpl_semi_sync_master_status';
++show status like 'Rpl_semi_sync_master_yes_tx';
++
++disable_query_log;
++# reset master to make sure the following test will start with a clean environment
++reset master;
++enable_query_log;
++
++--echo #
++--echo # INSTALL PLUGIN semi-sync on slave
++--echo #
++
++connection slave;
++echo [ on slave ];
++
++source include/stop_slave.inc;
++reset slave;
++disable_query_log;
++let $value= query_get_value(show variables like 'rpl_semi_sync_slave_enabled', Value, 1);
++if ($value == No such row)
++{
++    set sql_log_bin=0;
++    eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_PLUGIN';
++    set sql_log_bin=1;
++}
++enable_query_log;
++
++echo [ default state of semi-sync on slave should be OFF ];
++show variables like 'rpl_semi_sync_slave_enabled';
++
++echo [ enable semi-sync on slave ];
++set global rpl_semi_sync_slave_enabled = 1;
++source include/start_slave.inc;
++show variables like 'rpl_semi_sync_slave_enabled';
++show status like 'Rpl_semi_sync_slave_status';
++
++connection master;
++echo [ on master ];
++
++# NOTE: Rpl_semi_sync_master_client will only be updated when
++# semi-sync slave has started binlog dump request
++show status like "Rpl_semi_sync_master_clients";
++let $status_var= Rpl_semi_sync_master_clients;
++let $status_var_value= 1;
++source include/wait_for_status_var.inc;
++
++echo [ initial master state after the semi-sync slave connected ];
++show status like 'Rpl_semi_sync_master_clients';
++show status like 'Rpl_semi_sync_master_status';
++show status like 'Rpl_semi_sync_master_no_tx';
++show status like 'Rpl_semi_sync_master_yes_tx';
++
++replace_result $engine_type ENGINE_TYPE;
++eval create table t1(a int) engine = $engine_type;
++
++echo [ master state after CREATE TABLE statement ];
++show status like 'Rpl_semi_sync_master_status';
++show status like 'Rpl_semi_sync_master_no_tx';
++show status like 'Rpl_semi_sync_master_yes_tx';
++
++insert into t1 values (1);
++
++echo [ master status after inserts ];
++show status like 'Rpl_semi_sync_master_status';
++show status like 'Rpl_semi_sync_master_no_tx';
++show status like 'Rpl_semi_sync_master_yes_tx';
++
++--echo #
++--echo # Bug#62174 rpl_semi_sync_master_wait_before_commit
++--echo # Now we check if rpl_semi_sync_master_wait_before_commit is ON,
++--echo # Semi-sync will act like what we expect.
++--echo #
++
++connection master;
++echo [ on master_0 ];
++CREATE TABLE t2 (username varchar(100));
++SET DEBUG_SYNC= 'rpl_semi_sync_before_commit SIGNAL before_commit_start WAIT_FOR before_commit_done';
++--send INSERT INTO t2 VALUES ('[The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao');
++
++connection master1;
++--echo
++--echo [ on master_1 ];
++--echo [ we can NOT read the data on master ]
++SET DEBUG_SYNC= "now WAIT_FOR before_commit_start";
++SELECT * FROM t2;
++
++sync_slave_with_master;
++connection slave;
++--echo
++--echo [ on slave ];
++--echo [ but,we can read the data on slave ]
++SELECT * FROM t2;
++
++connection master1;
++SET DEBUG_SYNC= 'now SIGNAL before_commit_done';
++--echo
++--echo [ on master_1 ];
++--echo [ at last, we can read the data on master ]
++SELECT * FROM t2;
++
++connection master;
++--reap
++
++--echo #
++--echo # Clean up
++--echo #
++
++connection slave;
++source include/stop_slave.inc;
++UNINSTALL PLUGIN rpl_semi_sync_slave;
++
++connection master;
++# The dump thread may still be running on the master, and so the following
++# UNINSTALL could generate a warning about the plugin is busy.
++disable_warnings;
++UNINSTALL PLUGIN rpl_semi_sync_master;
++enable_warnings;
++
++connection slave;
++change master to master_user='root',master_password='';
++source include/start_slave.inc;
++
++connection master;
++drop table t1;
++drop table t2;
++SET DEBUG_SYNC='RESET';
++sync_slave_with_master;
++
++connection master;
++--source include/rpl_end.inc
+diff -Nur mysql-5.5.16/plugin/semisync/semisync_master.cc mysql-5.5.16.ESR/plugin/semisync/semisync_master.cc
+--- mysql-5.5.16/plugin/semisync/semisync_master.cc	2011-09-09 23:56:40.000000000 +0800
++++ mysql-5.5.16.ESR/plugin/semisync/semisync_master.cc	2011-09-21 20:57:45.000000000 +0800
+@@ -24,6 +24,7 @@
+ 
+ /* This indicates whether semi-synchronous replication is enabled. */
+ char rpl_semi_sync_master_enabled;
++char rpl_semi_sync_master_wait_before_commit;
+ unsigned long rpl_semi_sync_master_timeout;
+ unsigned long rpl_semi_sync_master_trace_level;
+ char rpl_semi_sync_master_status                    = 0;
+diff -Nur mysql-5.5.16/plugin/semisync/semisync_master.h mysql-5.5.16.ESR/plugin/semisync/semisync_master.h
+--- mysql-5.5.16/plugin/semisync/semisync_master.h	2011-09-09 23:56:40.000000000 +0800
++++ mysql-5.5.16.ESR/plugin/semisync/semisync_master.h	2011-09-21 20:58:08.000000000 +0800
+@@ -592,6 +592,7 @@
+ 
+ /* System and status variables for the master component */
+ extern char rpl_semi_sync_master_enabled;
++extern char rpl_semi_sync_master_wait_before_commit;
+ extern char rpl_semi_sync_master_status;
+ extern unsigned long rpl_semi_sync_master_clients;
+ extern unsigned long rpl_semi_sync_master_timeout;
+diff -Nur mysql-5.5.16/plugin/semisync/semisync_master_plugin.cc mysql-5.5.16.ESR/plugin/semisync/semisync_master_plugin.cc
+--- mysql-5.5.16/plugin/semisync/semisync_master_plugin.cc	2011-09-09 23:56:40.000000000 +0800
++++ mysql-5.5.16.ESR/plugin/semisync/semisync_master_plugin.cc	2011-09-21 20:57:02.000000000 +0800
+@@ -43,6 +43,23 @@
+   return error;
+ }
+ 
++int repl_semi_report_binlog_commit(Binlog_storage_param *param,
++				   const char *log_file,
++				   my_off_t log_pos, bool all)
++{
++  if(!rpl_semi_sync_master_wait_before_commit)
++    return 0;
++  THD *thd= current_thd;
++  bool is_real_trans = (all || thd->transaction.all.ha_list == 0);
++
++  if (is_real_trans && log_pos)
++  {
++    const char *binlog_name= log_file;
++    return repl_semisync.commitTrx(binlog_name, log_pos);
++  }
++  return 0;
++}
++
+ int repl_semi_request_commit(Trans_param *param)
+ {
+   return 0;
+@@ -175,6 +192,19 @@
+   &fix_rpl_semi_sync_master_enabled,	// update
+   0);
+ 
++/*A new variables is added for semi-sync: "rpl_semi_sync_master_wait_before_commit".
++  Once you set this variables ON, MySQL(InnoDB) ***WILL NOT COMMIT*** the transaction 
++  until at least one slave get the binary log. By default, it is OFF and semi-sync act as the original way.
++  Set this ON, make semi-sync act like this :
++    "Once you ***can read*** the data from the master, at least on slave has got the binary log"
++  as the original semi-sync act like this :
++    "Once you ***get reponse*** from the master, at least on slave has got the binary log"
++  This feature is developed by Taobao.com,and original written by Zhou zhenxing.*/
++static MYSQL_SYSVAR_BOOL(wait_before_commit, rpl_semi_sync_master_wait_before_commit,
++  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
++ "Enable semi-synchronous wait the sending before commit",
++  NULL, NULL, FALSE);
++
+ static MYSQL_SYSVAR_ULONG(timeout, rpl_semi_sync_master_timeout,
+   PLUGIN_VAR_OPCMDARG,
+  "The timeout value (in ms) for semi-synchronous replication in the master",
+@@ -198,6 +228,7 @@
+ 
+ static SYS_VAR* semi_sync_master_system_vars[]= {
+   MYSQL_SYSVAR(enabled),
++  MYSQL_SYSVAR(wait_before_commit),
+   MYSQL_SYSVAR(timeout),
+   MYSQL_SYSVAR(wait_no_slave),
+   MYSQL_SYSVAR(trace_level),
+@@ -256,6 +287,7 @@
+   sizeof(Binlog_storage_observer), // len
+ 
+   repl_semi_report_binlog_update, // report_update
++  repl_semi_report_binlog_commit, // report binlog_commit;called just before the return of binlog_commit
+ };
+ 
+ Binlog_transmit_observer transmit_observer = {
+@@ -379,8 +411,11 @@
+ 
+   if (repl_semisync.initObject())
+     return 1;
+-  if (register_trans_observer(&trans_observer, p))
+-    return 1;
++  if(!rpl_semi_sync_master_wait_before_commit)
++  {
++    if (register_trans_observer(&trans_observer, p))
++      return 1;
++  }
+   if (register_binlog_storage_observer(&storage_observer, p))
+     return 1;
+   if (register_binlog_transmit_observer(&transmit_observer, p))
+@@ -390,10 +425,13 @@
+ 
+ static int semi_sync_master_plugin_deinit(void *p)
+ {
+-  if (unregister_trans_observer(&trans_observer, p))
++  if(!rpl_semi_sync_master_wait_before_commit)
+   {
+-    sql_print_error("unregister_trans_observer failed");
+-    return 1;
++    if (unregister_trans_observer(&trans_observer, p))
++    {
++      sql_print_error("unregister_trans_observer failed");
++      return 1;
++    }
+   }
+   if (unregister_binlog_storage_observer(&storage_observer, p))
+   {
+diff -Nur mysql-5.5.16/sql/log.cc mysql-5.5.16.ESR/sql/log.cc
+--- mysql-5.5.16/sql/log.cc	2011-09-09 23:56:39.000000000 +0800
++++ mysql-5.5.16.ESR/sql/log.cc	2011-09-21 20:47:30.000000000 +0800
+@@ -42,6 +42,7 @@
+ #include <my_dir.h>
+ #include <stdarg.h>
+ #include <m_ctype.h>				// For test_if_number
++#include "debug_sync.h"       // DEBUG_SYNC
+ 
+ #ifdef _WIN32
+ #include "message.h"
+@@ -1807,6 +1808,8 @@
+       we're here because cache_log was flushed in MYSQL_BIN_LOG::log_xid()
+     */
+     cache_mngr->reset_cache(&cache_mngr->trx_cache);
++    DEBUG_SYNC(thd, "rpl_semi_sync_before_commit");
++    RUN_HOOK(binlog_storage, report_binlog_commit,(thd,all));
+     DBUG_RETURN(error);
+   }
+ 
+@@ -1825,6 +1828,8 @@
+   if (!all)
+     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
+ 
++  DEBUG_SYNC(thd, "rpl_semi_sync_before_commit");
++  RUN_HOOK(binlog_storage, report_binlog_commit,(thd,all));
+   DBUG_RETURN(error);
+ }
+ 
+diff -Nur mysql-5.5.16/sql/replication.h mysql-5.5.16.ESR/sql/replication.h
+--- mysql-5.5.16/sql/replication.h	2011-09-09 23:56:39.000000000 +0800
++++ mysql-5.5.16.ESR/sql/replication.h	2011-09-21 20:49:28.000000000 +0800
+@@ -134,6 +134,20 @@
+   int (*after_flush)(Binlog_storage_param *param,
+                      const char *log_file, my_off_t log_pos,
+                      uint32 flags);
++
++
++  /**
++     This callback is called IN binlog_commit. 
++     just at the return of binlog_commit.
++
++     @param param Observer common parameter
++
++     @retval 0 Sucess
++     @retval 1 Failure
++  */
++  int (*report_binlog_commit)(Binlog_storage_param *param,
++                     const char *log_file, my_off_t log_pos,
++                     bool all);
+ } Binlog_storage_observer;
+ 
+ /**
+diff -Nur mysql-5.5.16/sql/rpl_handler.cc mysql-5.5.16.ESR/sql/rpl_handler.cc
+--- mysql-5.5.16/sql/rpl_handler.cc	2011-09-09 23:56:39.000000000 +0800
++++ mysql-5.5.16.ESR/sql/rpl_handler.cc	2011-09-21 20:50:19.000000000 +0800
+@@ -312,6 +312,18 @@
+   return ret;
+ }
+ 
++int Binlog_storage_delegate::report_binlog_commit(THD *thd, bool all)
++{
++  Binlog_storage_param param;
++
++  Trans_binlog_info *log_info=
++    my_pthread_getspecific_ptr(Trans_binlog_info*, RPL_TRANS_BINLOG_INFO);
++
++  int ret= 0;
++  FOREACH_OBSERVER(ret, report_binlog_commit, thd,
++                   (&param,(log_info ? log_info->log_file : 0) , (log_info ? log_info->log_pos : 0), all));
++  return ret;
++}
+ #ifdef HAVE_REPLICATION
+ int Binlog_transmit_delegate::transmit_start(THD *thd, ushort flags,
+                                              const char *log_file,
+diff -Nur mysql-5.5.16/sql/rpl_handler.h mysql-5.5.16.ESR/sql/rpl_handler.h
+--- mysql-5.5.16/sql/rpl_handler.h	2011-09-09 23:56:39.000000000 +0800
++++ mysql-5.5.16.ESR/sql/rpl_handler.h	2011-09-21 20:50:48.000000000 +0800
+@@ -157,6 +157,7 @@
+   typedef Binlog_storage_observer Observer;
+   int after_flush(THD *thd, const char *log_file,
+                   my_off_t log_pos, bool synced);
++  int report_binlog_commit(THD *thd, bool all);
+ };
+ 
+ #ifdef HAVE_REPLICATION
