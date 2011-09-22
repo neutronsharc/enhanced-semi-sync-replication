@@ -22,6 +22,8 @@ rpl_semi_sync_master_enabled=1
 rpl_semi_sync_master_timeout=5000
 rpl_semi_sync_master_trace_level=32
 rpl_semi_sync_master_wait_before_commit=1
+
+sync_binlog=1
 }}}
 
 === For MySQL Community Server 5.5.16 ===
