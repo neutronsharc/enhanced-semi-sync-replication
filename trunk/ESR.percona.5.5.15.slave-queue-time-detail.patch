@@ -1,0 +1,176 @@
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave.cc Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave.cc
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave.cc	2011-07-14 03:09:04.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave.cc	2011-10-12 10:47:22.000000000 +0800
+@@ -20,6 +20,11 @@
+ char rpl_semi_sync_slave_enabled;
+ char rpl_semi_sync_slave_status= 0;
+ unsigned long rpl_semi_sync_slave_trace_level;
++unsigned long long rpl_semi_sync_slave_queue_time_0_100 = 0;
++unsigned long long rpl_semi_sync_slave_queue_time_100_250 = 0;
++unsigned long long rpl_semi_sync_slave_queue_time_250_500 = 0;
++unsigned long long rpl_semi_sync_slave_queue_time_500_1000 = 0;
++unsigned long long rpl_semi_sync_slave_queue_time_1000 = 0;
+ 
+ int ReplSemiSyncSlave::initObject()
+ {
+@@ -137,3 +142,4 @@
+ 
+   return function_exit(kWho, reply_res);
+ }
++
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave.h Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave.h
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave.h	2011-07-14 03:09:04.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave.h	2011-10-12 10:47:44.000000000 +0800
+@@ -93,5 +93,10 @@
+ extern char rpl_semi_sync_slave_enabled;
+ extern unsigned long rpl_semi_sync_slave_trace_level;
+ extern char rpl_semi_sync_slave_status;
++extern unsigned long long rpl_semi_sync_slave_queue_time_0_100;
++extern unsigned long long rpl_semi_sync_slave_queue_time_100_250;
++extern unsigned long long rpl_semi_sync_slave_queue_time_250_500;
++extern unsigned long long rpl_semi_sync_slave_queue_time_500_1000;
++extern unsigned long long rpl_semi_sync_slave_queue_time_1000;
+ 
+ #endif /* SEMISYNC_SLAVE_H */
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave_plugin.cc Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave_plugin.cc
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_slave_plugin.cc	2011-07-14 03:09:04.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-slave-queue-time-detail/plugin/semisync/semisync_slave_plugin.cc	2011-10-12 10:48:53.000000000 +0800
+@@ -18,8 +18,45 @@
+ #include "semisync_slave.h"
+ #include <mysql.h>
+ 
++#define TIME_THOUSAND 1000
++#define TIME_MILLION  1000000
++#define TIME_BILLION  1000000000
++
+ ReplSemiSyncSlave repl_semisync;
+ 
++#define SHOW_FNAME(name)            \
++rpl_semi_sync_slave_show_##name
++
++#define DEF_SHOW_FUNC(name, show_type)                  \
++static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff) \
++{                                 \
++var->type= show_type;                       \
++var->value= (char *)&rpl_semi_sync_slave_##name;               \
++return 0;                               \
++}
++
++DEF_SHOW_FUNC(queue_time_0_100, SHOW_LONGLONG)
++DEF_SHOW_FUNC(queue_time_100_250, SHOW_LONGLONG)
++DEF_SHOW_FUNC(queue_time_250_500, SHOW_LONGLONG)
++DEF_SHOW_FUNC(queue_time_500_1000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(queue_time_1000, SHOW_LONGLONG)
++
++static int getWaitTime(const struct timespec& start_ts);
++
++static unsigned long long timespec_to_usec(const struct timespec *ts)
++{
++#ifndef __WIN__
++  return (unsigned long long) ts->tv_sec * TIME_MILLION + ts->tv_nsec / TIME_THOUSAND;
++#else
++  return ts->tv.i64 / 10;
++#endif /* __WIN__ */
++}
++
++
++
++struct timespec start_ts;
++//set_timespec(start_ts, 0);
++
+ /*
+   indicate whether or not the slave should send a reply to the master.
+ 
+@@ -88,6 +125,7 @@
+ 			       const char *packet, unsigned long len,
+ 			       const char **event_buf, unsigned long *event_len)
+ {
++  set_timespec(start_ts, 0);
+   if (rpl_semi_sync_slave_status)
+     return repl_semisync.slaveReadSyncHeader(packet, len,
+ 					     &semi_sync_need_reply,
+@@ -109,9 +147,30 @@
+       should not cause the slave IO thread to stop, and the error
+       messages are already reported.
+     */
++    int time_between_read_and_queue;
+     (void) repl_semisync.slaveReply(param->mysql,
+                                     param->master_log_name,
+                                     param->master_log_pos);
++    time_between_read_and_queue = getWaitTime(start_ts);
++    if(time_between_read_and_queue < 100){
++        rpl_semi_sync_slave_queue_time_0_100++;
++    }
++    else if(time_between_read_and_queue < 250)
++    {
++        rpl_semi_sync_slave_queue_time_100_250++;
++    }
++    else if(time_between_read_and_queue < 500)
++    {
++        rpl_semi_sync_slave_queue_time_250_500++;
++    }
++    else if(time_between_read_and_queue < 1000)
++    {
++        rpl_semi_sync_slave_queue_time_500_1000++;
++    }
++    else
++    {
++        rpl_semi_sync_slave_queue_time_1000++;
++    }
+   }
+   return 0;
+ }
+@@ -174,6 +233,21 @@
+ static SHOW_VAR semi_sync_slave_status_vars[]= {
+   {"Rpl_semi_sync_slave_status",
+    (char*) &rpl_semi_sync_slave_status,    SHOW_BOOL},
++  {"Rpl_semi_sync_slave_queue_time_0_100",
++   (char*) &SHOW_FNAME(queue_time_0_100),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_slave_queue_time_100_250",
++   (char*) &SHOW_FNAME(queue_time_100_250),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_slave_queue_time_250_500",
++   (char*) &SHOW_FNAME(queue_time_250_500),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_slave_queue_time_500_1000",
++   (char*) &SHOW_FNAME(queue_time_500_1000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_slave_queue_time_1000",
++   (char*) &SHOW_FNAME(queue_time_1000),
++   SHOW_FUNC},
+   {NULL, NULL, SHOW_BOOL},
+ };
+ 
+@@ -204,6 +278,31 @@
+   return 0;
+ }
+ 
++/* Get the waiting time given the wait's staring time.
++ * 
++ * Return:
++ *  >= 0: the waiting time in microsecons(us)
++ *   < 0: error in get time or time back traverse
++ */
++static int getWaitTime(const struct timespec& start_ts)
++{
++  unsigned long long start_usecs, end_usecs;
++  struct timespec end_ts;
++
++  /* Starting time in microseconds(us). */
++  start_usecs = timespec_to_usec(&start_ts);
++
++  /* Get the wait time interval. */
++  set_timespec(end_ts, 0);
++
++  /* Ending time in microseconds(us). */
++  end_usecs = timespec_to_usec(&end_ts);
++
++  if (end_usecs < start_usecs)
++    return -1;
++
++  return (int)(end_usecs - start_usecs);
++}
+ 
+ struct Mysql_replication semi_sync_slave_plugin= {
+   MYSQL_REPLICATION_INTERFACE_VERSION
