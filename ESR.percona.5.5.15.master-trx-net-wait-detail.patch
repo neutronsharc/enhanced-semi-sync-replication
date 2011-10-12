@@ -1,0 +1,231 @@
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master.cc Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master.cc
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master.cc	2011-10-12 10:19:02.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master.cc	2011-10-12 10:38:54.000000000 +0800
+@@ -44,6 +44,22 @@
+ unsigned long long rpl_semi_sync_master_trx_wait_time = 0;
+ char rpl_semi_sync_master_wait_no_slave = 1;
+ 
++unsigned long long rpl_semi_sync_master_tx_wait_time_0_100 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_100_500 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_500_1000 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_1000_3000 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_3000_6000 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_6000_10000 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_10000_100000 = 0;
++unsigned long long rpl_semi_sync_master_tx_wait_time_100000_1000000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_0_100 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_100_500 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_500_1000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_1000_3000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_3000_6000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_6000_10000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_10000_100000 = 0;
++unsigned long long rpl_semi_sync_master_net_wait_time_100000_1000000 = 0;
+ 
+ static int getWaitTime(const struct timespec& start_ts);
+ 
+@@ -744,6 +760,38 @@
+         {
+           rpl_semi_sync_master_trx_wait_num++;
+           rpl_semi_sync_master_trx_wait_time += wait_time;
++          if(wait_time < 100)
++          {
++            rpl_semi_sync_master_tx_wait_time_0_100++;
++          } 
++          else if(wait_time < 500)
++          {
++            rpl_semi_sync_master_tx_wait_time_100_500++;
++          } 
++          else if(wait_time < 1000)
++          {
++            rpl_semi_sync_master_tx_wait_time_500_1000++;
++          } 
++          else if(wait_time < 3000)
++          {
++            rpl_semi_sync_master_tx_wait_time_1000_3000++;
++          } 
++          else if(wait_time < 6000)
++          {
++            rpl_semi_sync_master_tx_wait_time_3000_6000++;
++          } 
++          else if(wait_time < 10000)
++          {
++            rpl_semi_sync_master_tx_wait_time_6000_10000++;
++          } 
++          else if(wait_time < 100000)
++          {
++            rpl_semi_sync_master_tx_wait_time_10000_100000++;
++          } 
++          else if(wait_time < 1000000)
++          {
++            rpl_semi_sync_master_tx_wait_time_100000_1000000++;
++          } 
+         }
+       }
+     }
+@@ -1070,8 +1118,6 @@
+     goto l_end;
+   }
+ 
+-  if (trc_level & kTraceNetWait)
+-    set_timespec(start_ts, 0);
+ 
+   /* We flush to make sure that the current event is sent to the network,
+    * instead of being buffered in the TCP/IP stack.
+@@ -1092,6 +1138,8 @@
+    * Transactions wait on binlog replies detected by binlog dump threads.  If
+    * binlog dump threads wait too long, transactions will timeout and continue.
+    */
++  if (trc_level & kTraceNetWait)
++    set_timespec(start_ts, 0);
+   packet_len = my_net_read(net);
+ 
+   if (trc_level & kTraceNetWait)
+@@ -1107,6 +1155,38 @@
+     {
+       rpl_semi_sync_master_net_wait_num++;
+       rpl_semi_sync_master_net_wait_time += wait_time;
++      if(wait_time < 100)
++      {
++        rpl_semi_sync_master_net_wait_time_0_100++;
++      } 
++      else if(wait_time < 500)
++      {
++        rpl_semi_sync_master_net_wait_time_100_500++;
++      } 
++      else if(wait_time < 1000)
++      {
++        rpl_semi_sync_master_net_wait_time_500_1000++;
++      } 
++      else if(wait_time < 3000)
++      {
++        rpl_semi_sync_master_net_wait_time_1000_3000++;
++      } 
++      else if(wait_time < 6000)
++      {
++        rpl_semi_sync_master_net_wait_time_3000_6000++;
++      } 
++      else if(wait_time < 10000)
++      {
++        rpl_semi_sync_master_net_wait_time_6000_10000++;
++      } 
++      else if(wait_time < 100000)
++      {
++        rpl_semi_sync_master_net_wait_time_10000_100000++;
++      } 
++      else if(wait_time < 1000000)
++      {
++        rpl_semi_sync_master_net_wait_time_100000_1000000++;
++      } 
+     }
+   }
+ 
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master.h Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master.h
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master.h	2011-10-12 10:19:02.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master.h	2011-10-12 10:39:01.000000000 +0800
+@@ -612,6 +612,24 @@
+ extern unsigned long long rpl_semi_sync_master_net_wait_time;
+ extern unsigned long long rpl_semi_sync_master_trx_wait_time;
+ 
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_0_100;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_100_500;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_500_1000;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_1000_3000;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_3000_6000;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_6000_10000;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_10000_100000;
++extern unsigned long long rpl_semi_sync_master_tx_wait_time_100000_1000000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_0_100;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_100_500;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_500_1000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_1000_3000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_3000_6000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_6000_10000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_10000_100000;
++extern unsigned long long rpl_semi_sync_master_net_wait_time_100000_1000000;
++
++
+ /*
+   This indicates whether we should keep waiting if no semi-sync slave
+   is available.
+diff -Nur Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master_plugin.cc Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master_plugin.cc
+--- Percona-Server-5.5.15-rel21.0/plugin/semisync/semisync_master_plugin.cc	2011-10-12 10:19:02.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-master-trx-net-wait-detail/plugin/semisync/semisync_master_plugin.cc	2011-10-12 10:39:06.000000000 +0800
+@@ -323,6 +323,22 @@
+ DEF_SHOW_FUNC(net_wait_num, SHOW_LONGLONG)
+ DEF_SHOW_FUNC(avg_net_wait_time, SHOW_LONG)
+ DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
++DEF_SHOW_FUNC(tx_wait_time_0_100, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_100_500, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_500_1000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_1000_3000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_3000_6000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_6000_10000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_10000_100000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(tx_wait_time_100000_1000000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_0_100, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_100_500, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_500_1000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_1000_3000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_3000_6000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_6000_10000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_10000_100000, SHOW_LONGLONG)
++DEF_SHOW_FUNC(net_wait_time_100000_1000000, SHOW_LONGLONG)
+ 
+ 
+ /* plugin status variables */
+@@ -369,6 +385,54 @@
+   {"Rpl_semi_sync_master_net_avg_wait_time",
+    (char*) &SHOW_FNAME(avg_net_wait_time),
+    SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_0_100",
++   (char*) &SHOW_FNAME(tx_wait_time_0_100),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_100_500",
++   (char*) &SHOW_FNAME(tx_wait_time_100_500),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_500_1000",
++   (char*) &SHOW_FNAME(tx_wait_time_500_1000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_1000_3000",
++   (char*) &SHOW_FNAME(tx_wait_time_1000_3000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_3000_6000",
++   (char*) &SHOW_FNAME(tx_wait_time_3000_6000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_6000_10000",
++   (char*) &SHOW_FNAME(tx_wait_time_6000_10000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_10000_100000",
++   (char*) &SHOW_FNAME(tx_wait_time_10000_100000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_tx_wait_time_100000_1000000",
++   (char*) &SHOW_FNAME(tx_wait_time_100000_1000000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_0_100",
++   (char*) &SHOW_FNAME(net_wait_time_0_100),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_100_500",
++   (char*) &SHOW_FNAME(net_wait_time_100_500),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_500_1000",
++   (char*) &SHOW_FNAME(net_wait_time_500_1000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_1000_3000",
++   (char*) &SHOW_FNAME(net_wait_time_1000_3000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_3000_6000",
++   (char*) &SHOW_FNAME(net_wait_time_3000_6000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_6000_10000",
++   (char*) &SHOW_FNAME(net_wait_time_6000_10000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_10000_100000",
++   (char*) &SHOW_FNAME(net_wait_time_10000_100000),
++   SHOW_FUNC},
++  {"Rpl_semi_sync_master_net_wait_time_100000_1000000",
++   (char*) &SHOW_FNAME(net_wait_time_100000_1000000),
++   SHOW_FUNC},
+   {NULL, NULL, SHOW_LONG},
+ };
+ 

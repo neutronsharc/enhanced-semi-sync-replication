@@ -1,0 +1,5 @@
+The patch sequence:
+ESR.percona.5.5.15.patch [ESR main patch]
+ESR.percona.5.5.15.fix-bug-44058.patch [fix bug#44058 issue 5]
+ESR.percona.5.5.15.master-trx-net-wait-detail.patch [master wait detail info]
+ESR.percona.5.5.15.slave-queue-time-detail.patch [slave wait detail info]
