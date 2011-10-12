@@ -1,0 +1,133 @@
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.cc
+--- Percona-Server-5.5.15-rel21.0/sql/log.cc	2011-10-12 09:44:50.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.cc	2011-10-12 09:58:56.000000000 +0800
+@@ -2444,6 +2444,7 @@
+   DBUG_ASSERT(inited == 0);
+   inited= 1;
+   mysql_mutex_init(key_LOG_LOCK_log, &LOCK_log, MY_MUTEX_INIT_SLOW);
++  mysql_mutex_init(key_XID_EVENT_LOCK_log, &LOCK_xid_event, MY_MUTEX_INIT_SLOW);
+ }
+ 
+ /*
+@@ -2496,6 +2497,7 @@
+   {
+     inited= 0;
+     mysql_mutex_destroy(&LOCK_log);
++    mysql_mutex_destroy(&LOCK_xid_event);
+     close(0);
+   }
+   DBUG_VOID_RETURN;
+@@ -4292,13 +4294,10 @@
+     DBUG_RETURN(error);
+   }
+ 
+-  if (need_lock)
+-    mysql_mutex_lock(&LOCK_log);
++  if (!need_lock)
++    mysql_mutex_unlock(&LOCK_log);
+   mysql_mutex_lock(&LOCK_index);
+ 
+-  mysql_mutex_assert_owner(&LOCK_log);
+-  mysql_mutex_assert_owner(&LOCK_index);
+-
+   /*
+     if binlog is used as tc log, be sure all xids are "unlogged",
+     so that on recover we only need to scan one - latest - binlog file
+@@ -4308,6 +4307,7 @@
+     increased), and waiting on COND_prep_xids for late threads to
+     catch up.
+   */
++  mysql_mutex_lock(&LOCK_xid_event);
+   if (prepared_xids)
+   {
+     tc_log_page_waits++;
+@@ -4318,6 +4318,11 @@
+     }
+     mysql_mutex_unlock(&LOCK_prep_xids);
+   }
++  mysql_mutex_lock(&LOCK_log);
++  mysql_mutex_unlock(&LOCK_xid_event);
++
++  mysql_mutex_assert_owner(&LOCK_log);
++  mysql_mutex_assert_owner(&LOCK_index);
+ 
+   /* Reuse old name if not binlog and not update log */
+   new_name_ptr= name;
+@@ -5510,6 +5515,12 @@
+                           bool incident)
+ {
+   DBUG_ENTER("MYSQL_BIN_LOG::write(THD *, IO_CACHE *, Log_event *)");
++  /*
++    Every time write the xid_event must be held. 
++    For semi-sync Bug#44058
++  */
++  if (commit_event && commit_event->get_type_code() == XID_EVENT)
++    mysql_mutex_lock(&LOCK_xid_event);
+   mysql_mutex_lock(&LOCK_log);
+ 
+   DBUG_ASSERT(is_open());
+@@ -5591,6 +5602,8 @@
+         goto err;
+   }
+   mysql_mutex_unlock(&LOCK_log);
++  if (commit_event && commit_event->get_type_code() == XID_EVENT)
++    mysql_mutex_unlock(&LOCK_xid_event);
+ 
+   DBUG_RETURN(0);
+ 
+Binary files Percona-Server-5.5.15-rel21.0/sql/.log.cc.swp and Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/.log.cc.swp differ
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.h Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.h
+--- Percona-Server-5.5.15-rel21.0/sql/log.h	2011-09-01 01:22:46.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.h	2011-10-12 09:42:49.000000000 +0800
+@@ -218,6 +218,29 @@
+  protected:
+   /* LOCK_log is inited by init_pthread_objects() */
+   mysql_mutex_t LOCK_log;
++  /*
++  For bug#44058 (issue 5)
++  Add LOCK_xid_event is for avoid the deadlock when rotate and enhanced semi-sync works.
++
++  How LOCK_xid_event works:
++  1) When writing a cached log entry to the binary log,if there is a commit_event(xid_event),
++     the thread must 
++       lock LOCK_xid_event, then 
++       lock LOCK_log, then
++       ... do the write job ...
++       unlock LOCK_log
++       unlock LOCK_xid_event
++
++  2) When rotate happening, then 
++       make sure unlock LOCK_log
++       lock LOCK_xid_event
++       condtion wait: "prepared_xids == 0"
++       lock LOCK_log
++       unlock LOCK_xid_event
++       ... do the rotate work ...
++       unlock LOCK_log
++  */
++  mysql_mutex_t LOCK_xid_event;
+   char *name;
+   char log_file_name[FN_REFLEN];
+   char time_buff[20], db[NAME_LEN + 1];
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.cc Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.cc
+--- Percona-Server-5.5.15-rel21.0/sql/mysqld.cc	2011-09-01 01:22:46.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.cc	2011-10-11 11:59:34.000000000 +0800
+@@ -8008,6 +8008,7 @@
+   key_LOCK_error_messages, key_LOG_INFO_lock, key_LOCK_thread_count,
+   key_PARTITION_LOCK_auto_inc;
+ PSI_mutex_key key_RELAYLOG_LOCK_index;
++PSI_mutex_key key_XID_EVENT_LOCK_log;
+ 
+ static PSI_mutex_info all_server_mutexes[]=
+ {
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.h Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.h
+--- Percona-Server-5.5.15-rel21.0/sql/mysqld.h	2011-09-01 01:22:46.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.h	2011-10-11 11:59:00.000000000 +0800
+@@ -273,6 +273,7 @@
+   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
+   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
+ extern PSI_mutex_key key_RELAYLOG_LOCK_index;
++extern PSI_mutex_key key_XID_EVENT_LOCK_log;
+ 
+ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
+   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
