@@ -1,6 +1,6 @@
-diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.cc
---- Percona-Server-5.5.15-rel21.0/sql/log.cc	2011-10-12 09:44:50.000000000 +0800
-+++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.cc	2011-10-12 09:58:56.000000000 +0800
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/log.cc
+--- Percona-Server-5.5.15-rel21.0/sql/log.cc	2011-11-16 21:34:00.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/log.cc	2011-11-16 21:00:55.000000000 +0800
 @@ -2444,6 +2444,7 @@
    DBUG_ASSERT(inited == 0);
    inited= 1;
@@ -17,12 +17,23 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0
      close(0);
    }
    DBUG_VOID_RETURN;
-@@ -4292,13 +4294,10 @@
+@@ -2921,7 +2923,7 @@
+ 
+ 
+ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
+-  :bytes_written(0), prepared_xids(0), file_id(1), open_count(1),
++  :bytes_written(0), prepared_xids(0), new_file_creating(FALSE) ,file_id(1), open_count(1),
+    need_start_event(TRUE),
+    sync_period_ptr(sync_period),
+    is_relay_log(0), signal_cnt(0),
+@@ -4291,14 +4293,11 @@
+     DBUG_PRINT("info",("log is closed"));
      DBUG_RETURN(error);
    }
- 
+-
 -  if (need_lock)
 -    mysql_mutex_lock(&LOCK_log);
++  new_file_creating = TRUE;
 +  if (!need_lock)
 +    mysql_mutex_unlock(&LOCK_log);
    mysql_mutex_lock(&LOCK_index);
@@ -53,7 +64,42 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0
  
    /* Reuse old name if not binlog and not update log */
    new_name_ptr= name;
-@@ -5510,6 +5515,12 @@
+@@ -4421,6 +4426,7 @@
+                      new_name_ptr, errno);
+   }
+ 
++  new_file_creating = FALSE;
+   if (need_lock)
+     mysql_mutex_unlock(&LOCK_log);
+   mysql_mutex_unlock(&LOCK_index);
+@@ -4449,7 +4455,7 @@
+   DBUG_PRINT("info",("max_size: %lu",max_size));
+   if (flush_and_sync(0))
+     goto err;
+-  if ((uint) my_b_append_tell(&log_file) > max_size)
++  if ( !new_file_creating && (uint) my_b_append_tell(&log_file) > max_size)
+     error= new_file_without_locking();
+ err:
+   mysql_mutex_unlock(&LOCK_log);
+@@ -4480,7 +4486,7 @@
+   DBUG_PRINT("info",("max_size: %lu",max_size));
+   if (flush_and_sync(0))
+     goto err;
+-  if ((uint) my_b_append_tell(&log_file) > max_size)
++  if (!new_file_creating && (uint) my_b_append_tell(&log_file) > max_size)
+     error= new_file_without_locking();
+ err:
+   if (!error)
+@@ -5237,7 +5243,7 @@
+   if (!(flags & RP_LOCK_LOG_IS_ALREADY_LOCKED))
+     mysql_mutex_lock(&LOCK_log);
+   if ((flags & RP_FORCE_ROTATE) ||
+-      (my_b_tell(&log_file) >= (my_off_t) max_size))
++      (!new_file_creating &&  my_b_tell(&log_file) >= (my_off_t) max_size))
+   {
+     if ((error= new_file_without_locking()))
+       /** 
+@@ -5510,6 +5516,12 @@
                            bool incident)
  {
    DBUG_ENTER("MYSQL_BIN_LOG::write(THD *, IO_CACHE *, Log_event *)");
@@ -66,7 +112,7 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0
    mysql_mutex_lock(&LOCK_log);
  
    DBUG_ASSERT(is_open());
-@@ -5591,6 +5602,8 @@
+@@ -5591,6 +5603,8 @@
          goto err;
    }
    mysql_mutex_unlock(&LOCK_log);
@@ -75,10 +121,9 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.cc Percona-Server-5.5.15-rel21.0
  
    DBUG_RETURN(0);
  
-Binary files Percona-Server-5.5.15-rel21.0/sql/.log.cc.swp and Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/.log.cc.swp differ
-diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.h Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.h
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.h Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/log.h
 --- Percona-Server-5.5.15-rel21.0/sql/log.h	2011-09-01 01:22:46.000000000 +0800
-+++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/log.h	2011-10-12 09:42:49.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/log.h	2011-11-16 21:00:55.000000000 +0800
 @@ -218,6 +218,29 @@
   protected:
    /* LOCK_log is inited by init_pthread_objects() */
@@ -109,9 +154,18 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/log.h Percona-Server-5.5.15-rel21.0.
    char *name;
    char log_file_name[FN_REFLEN];
    char time_buff[20], db[NAME_LEN + 1];
-diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.cc Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.cc
+@@ -312,6 +335,8 @@
+   */
+   ulong max_size;
+   long prepared_xids; /* for tc log - number of xids to remember */
++  // For bug#44058 (issue 5) see more ::new_file_impl and ::LOCK_xid_event
++  bool new_file_creating;
+   // current file sequence number for load data infile binary logging
+   uint file_id;
+   uint open_count;				// For replication
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.cc Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/mysqld.cc
 --- Percona-Server-5.5.15-rel21.0/sql/mysqld.cc	2011-09-01 01:22:46.000000000 +0800
-+++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.cc	2011-10-11 11:59:34.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/mysqld.cc	2011-11-16 21:00:55.000000000 +0800
 @@ -8008,6 +8008,7 @@
    key_LOCK_error_messages, key_LOG_INFO_lock, key_LOCK_thread_count,
    key_PARTITION_LOCK_auto_inc;
@@ -120,9 +174,9 @@ diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.cc Percona-Server-5.5.15-rel2
  
  static PSI_mutex_info all_server_mutexes[]=
  {
-diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.h Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.h
+diff -Nur Percona-Server-5.5.15-rel21.0/sql/mysqld.h Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/mysqld.h
 --- Percona-Server-5.5.15-rel21.0/sql/mysqld.h	2011-09-01 01:22:46.000000000 +0800
-+++ Percona-Server-5.5.15-rel21.0.ESR-fix-bug-44058/sql/mysqld.h	2011-10-11 11:59:00.000000000 +0800
++++ Percona-Server-5.5.15-rel21.0.fix-bug-44058.v2/sql/mysqld.h	2011-11-16 21:00:55.000000000 +0800
 @@ -273,6 +273,7 @@
    key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
    key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
