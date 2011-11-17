@@ -10,7 +10,6 @@ patching file Percona-Server-5.5.15-rel21.0/sql/log.cc
 patching file Percona-Server-5.5.15-rel21.0/sql/replication.h
 patching file Percona-Server-5.5.15-rel21.0/sql/rpl_handler.cc
 patching file Percona-Server-5.5.15-rel21.0/sql/rpl_handler.h
-patching file Percona-Server-5.5.15-rel21.0/sql/log.cc
 patching file Percona-Server-5.5.15-rel21.0/sql/log.h
 patching file Percona-Server-5.5.15-rel21.0/sql/mysqld.cc
 patching file Percona-Server-5.5.15-rel21.0/sql/mysqld.h
@@ -19,4 +18,6 @@ patching file Percona-Server-5.5.15-rel21.0/sql/mysqld.h
 更改的文件：
 {{{
 plugin/semisync/semisync_master_plugin.cc
+sql/log.cc
+patching file Percona-Server-5.5.15-rel21.0/sql/mysqld.cc
 }}}
