@@ -464,7 +464,7 @@ diff -Nur Percona-Server-5.5.16-rel22.0/plugin/semisync/semisync_master_plugin.c
    {
 diff -Nur Percona-Server-5.5.16-rel22.0/sql/log.cc Percona-Server-5.5.16-rel22.0.ESR/sql/log.cc
 --- Percona-Server-5.5.16-rel22.0/sql/log.cc	2011-10-16 20:58:28.000000000 +0800
-+++ Percona-Server-5.5.16-rel22.0.ESR/sql/log.cc	2011-11-17 13:41:21.000000000 +0800
++++ Percona-Server-5.5.16-rel22.0.ESR/sql/log.cc	2011-11-17 13:45:14.000000000 +0800
 @@ -42,6 +42,7 @@
  #include <my_dir.h>
  #include <stdarg.h>
@@ -611,13 +611,12 @@ diff -Nur Percona-Server-5.5.16-rel22.0/sql/log.cc Percona-Server-5.5.16-rel22.0
  
    DBUG_RETURN(0);
  
-@@ -6724,7 +6743,7 @@
-   0x0100 /* 1.0 */,
+@@ -6725,6 +6744,6 @@
    NULL,                       /* status variables                */
    NULL,                       /* system variables                */
--  NULL,                       /* config options                  */
-+  NULL                        /* config options                  */
-   0,                          /* flags                           */
+   NULL,                       /* config options                  */
+-  0,                          /* flags                           */
++  0                           /* flags                           */
  }
  mysql_declare_plugin_end;
 diff -Nur Percona-Server-5.5.16-rel22.0/sql/log.h Percona-Server-5.5.16-rel22.0.ESR/sql/log.h
