@@ -141,6 +141,152 @@ diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/r/rpl_semi_sync_wai
 +drop table t2;
 +SET DEBUG_SYNC='RESET';
 +include/rpl_end.inc
+diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result.rej Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result.rej
+--- Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result.rej	1970-01-01 08:00:00.000000000 +0800
++++ Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/r/rpl_semi_sync_wait_before_commit.result.rej	2011-11-17 13:51:08.000000000 +0800
+@@ -0,0 +1,142 @@
++***************
++*** 0 ****
++--- 1,139 ----
+++ include/master-slave.inc
+++ [connection master]
+++ #
+++ # Make Semi-sync MySQL works
+++ #
+++ #
+++ # INSTALL PLUGIN semi-sync on master
+++ #
+++ [ on master ]
+++ [ default state of semi-sync on master should be OFF ]
+++ show variables like 'rpl_semi_sync_master_enabled';
+++ Variable_name	Value
+++ rpl_semi_sync_master_enabled	OFF
+++ show variables like 'Rpl_semi_sync_master_wait_before_commit';
+++ Variable_name	Value
+++ rpl_semi_sync_master_wait_before_commit	ON
+++ [ enable semi-sync on master ]
+++ set global rpl_semi_sync_master_enabled = 1;
+++ show variables like 'rpl_semi_sync_master_enabled';
+++ Variable_name	Value
+++ rpl_semi_sync_master_enabled	ON
+++ [ status of semi-sync on master should be ON even without any semi-sync slaves ]
+++ show status like 'Rpl_semi_sync_master_clients';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_clients	0
+++ show status like 'Rpl_semi_sync_master_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_status	ON
+++ show status like 'Rpl_semi_sync_master_yes_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_yes_tx	0
+++ [ status of semi-sync on master should be OFF ]
+++ show status like 'Rpl_semi_sync_master_clients';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_clients	0
+++ show status like 'Rpl_semi_sync_master_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_status	ON
+++ show status like 'Rpl_semi_sync_master_yes_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_yes_tx	0
+++ #
+++ # INSTALL PLUGIN semi-sync on slave
+++ #
+++ [ on slave ]
+++ include/stop_slave.inc
+++ reset slave;
+++ [ default state of semi-sync on slave should be OFF ]
+++ show variables like 'rpl_semi_sync_slave_enabled';
+++ Variable_name	Value
+++ rpl_semi_sync_slave_enabled	OFF
+++ [ enable semi-sync on slave ]
+++ set global rpl_semi_sync_slave_enabled = 1;
+++ include/start_slave.inc
+++ show variables like 'rpl_semi_sync_slave_enabled';
+++ Variable_name	Value
+++ rpl_semi_sync_slave_enabled	ON
+++ show status like 'Rpl_semi_sync_slave_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_slave_status	ON
+++ [ on master ]
+++ show status like "Rpl_semi_sync_master_clients";
+++ Variable_name	Value
+++ Rpl_semi_sync_master_clients	1
+++ [ initial master state after the semi-sync slave connected ]
+++ show status like 'Rpl_semi_sync_master_clients';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_clients	1
+++ show status like 'Rpl_semi_sync_master_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_status	ON
+++ show status like 'Rpl_semi_sync_master_no_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_no_tx	0
+++ show status like 'Rpl_semi_sync_master_yes_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_yes_tx	0
+++ create table t1(a int) engine = ENGINE_TYPE;
+++ [ master state after CREATE TABLE statement ]
+++ show status like 'Rpl_semi_sync_master_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_status	ON
+++ show status like 'Rpl_semi_sync_master_no_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_no_tx	0
+++ show status like 'Rpl_semi_sync_master_yes_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_yes_tx	0
+++ insert into t1 values (1);
+++ [ master status after inserts ]
+++ show status like 'Rpl_semi_sync_master_status';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_status	ON
+++ show status like 'Rpl_semi_sync_master_no_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_no_tx	0
+++ show status like 'Rpl_semi_sync_master_yes_tx';
+++ Variable_name	Value
+++ Rpl_semi_sync_master_yes_tx	1
+++ #
+++ # Bug#62174 rpl_semi_sync_master_wait_before_commit
+++ # Now we check if rpl_semi_sync_master_wait_before_commit is ON,
+++ # Semi-sync will act like what we expect.
+++ #
+++ [ on master_0 ]
+++ CREATE TABLE t2 (username varchar(100));
+++ SET DEBUG_SYNC= 'rpl_semi_sync_before_commit SIGNAL before_commit_start WAIT_FOR before_commit_done';
+++ INSERT INTO t2 VALUES ('[The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao');;
+++ 
+++ [ on master_1 ];
+++ [ we can NOT read the data on master ]
+++ SET DEBUG_SYNC= "now WAIT_FOR before_commit_start";
+++ SELECT * FROM t2;
+++ username
+++ 
+++ [ on slave ];
+++ [ but,we can read the data on slave ]
+++ SELECT * FROM t2;
+++ username
+++ [The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao
+++ SET DEBUG_SYNC= 'now SIGNAL before_commit_done';
+++ 
+++ [ on master_1 ];
+++ [ at last, we can read the data on master ]
+++ SELECT * FROM t2;
+++ username
+++ [The good you do today will be forgotten tomorrow.Do good anyway] From Zhou Zhenxing From Taobao
+++ #
+++ # Clean up
+++ #
+++ include/stop_slave.inc
+++ UNINSTALL PLUGIN rpl_semi_sync_slave;
+++ UNINSTALL PLUGIN rpl_semi_sync_master;
+++ change master to master_user='root',master_password='';
+++ include/start_slave.inc
+++ drop table t1;
+++ drop table t2;
+++ SET DEBUG_SYNC='RESET';
+++ include/rpl_end.inc
 diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt
 --- Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt	1970-01-01 08:00:00.000000000 +0800
 +++ Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt	2011-11-17 12:50:41.000000000 +0800
@@ -148,6 +294,16 @@ diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wai
 +$SEMISYNC_PLUGIN_OPT
 +--force-restart
 +--loose-rpl_semi_sync_master_wait_before_commit=1
+diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt.rej Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt.rej
+--- Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt.rej	1970-01-01 08:00:00.000000000 +0800
++++ Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit-master.opt.rej	2011-11-17 13:51:10.000000000 +0800
+@@ -0,0 +1,6 @@
++***************
++*** 0 ****
++--- 1,3 ----
+++ $SEMISYNC_PLUGIN_OPT
+++ --force-restart
+++ --loose-rpl_semi_sync_master_wait_before_commit=1
 diff -Nur Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test
 --- Percona-Server-5.5.16-rel22.0/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test	1970-01-01 08:00:00.000000000 +0800
 +++ Percona-Server-5.5.16-rel22.0.ESR/mysql-test/suite/rpl/t/rpl_semi_sync_wait_before_commit.test	2011-11-17 12:51:07.000000000 +0800
